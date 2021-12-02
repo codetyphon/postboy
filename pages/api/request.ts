@@ -3,6 +3,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 export default async (_req: NextApiRequest, res: NextApiResponse) => {
   switch (_req.method) {
     case 'POST':
+      const begin = Date.now()
       try {
         const { method, url, json, headers } = _req.body;
         const h: any = {
@@ -15,25 +16,28 @@ export default async (_req: NextApiRequest, res: NextApiResponse) => {
             h[key] = value
           }
         });
-        
+
         const config = {
           method: method,
-          headers: {...h},
-          body: json
+          headers: { ...h },
+          timeout: 3000,
+          body: JSON.stringify(json) as any
         }
+
         console.log(config)
-        if (method) {
+        if (method === "GET") {
           delete config.body
         }
-        const begin = Date.now()
+
+
         const result = await fetch(url, config)
-        const end = Date.now()
-        const time = end - begin
+        const time = Date.now() - begin
         const { status } = result
         const response = await result.text();
         res.status(200).json({ status, response, time })
       } catch (err: any) {
-        res.status(500).json({ statusCode: 500, response: err.message })
+        const time = Date.now() - begin
+        res.status(500).json({ status: 500, response: err.message, time })
       }
       break
     default:

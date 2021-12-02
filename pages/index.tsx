@@ -1,6 +1,9 @@
-import { Spin, Card, Select, Input, Button, Tabs } from 'antd'
+import { Spin, Card, Select, Input, Button, Tabs, Alert } from 'antd'
+import {ClockCircleOutlined} from "@ant-design/icons"
 import { v4 as uuidv4 } from 'uuid';
 import React, { useEffect, useState } from 'react'
+import Prism from "prismjs"
+import "prismjs/themes/prism-tomorrow.css";
 const { Option } = Select;
 const { TabPane } = Tabs;
 const { TextArea } = Input;
@@ -12,8 +15,11 @@ export default function Home() {
   //req
   const [method, setMethod] = useState<string>("GET")
   const [url, setUrl] = useState<string>("")
-  const [json, setJson] = useState<string>("{}")
+  const [json, setJson] = useState<JSON>(() => JSON)
+  const [jsonText, setJsonText] = useState<string>("{}")
   const [headers, setHeaders] = useState<any[]>([])
+
+  const [jsonFormatError, setJsonFormatError] = useState<boolean>(false)
 
   //res
   const [status, setStatus] = useState<any>("")
@@ -24,9 +30,21 @@ export default function Home() {
 
   useEffect(() => {
 
-  }, [])
+  }, []);
 
   const send = async () => {
+    setJsonFormatError(false)
+
+    if (method != "GET") {
+      try {
+        JSON.parse(jsonText)
+        setJson(JSON.parse(jsonText))
+      } catch (error) {
+        setJsonFormatError(true)
+        return false
+      }
+    }
+
     setSpinning(true)
 
     setTime("")
@@ -34,31 +52,34 @@ export default function Home() {
     setResponse("")
     setResponseJSON(null)
 
-    const res = await fetch("/api/request", {
+    const data = {
+      method,
+      url,
+      json,
+      headers
+    }
+
+    const config: any = {
       method: "POST",
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        method,
-        url,
-        json,
-        headers
-      })
-    })
+      timeout: 3000,
+      body: JSON.stringify(data)
+    }
 
-    if (res.status == 200) {
-      const { status, response, time } = await res.json()
-      setStatus(status)
-      setResponse(response)
-      setTime(time + "ms")
-      try {
-        const j = JSON.stringify(JSON.parse(response), null, 4)
-        setResponseJSON(j)
-      } catch (error) {
+    const res = await fetch("/api/request", config)
 
-      }
+    const { status, response, time } = await res.json()
+    setStatus(status)
+    setResponse(response)
+    setTime(time + "ms")
+    try {
+      const j = JSON.stringify(JSON.parse(response), null, 4)
+      setResponseJSON(j)
+    } catch (error) {
+
     }
 
     setSpinning(false)
@@ -66,7 +87,7 @@ export default function Home() {
 
 
   return (
-    <Spin tip="Loading..." spinning={spinning}>
+    <Spin spinning={spinning}>
       <Card style={{ padding: "20px" }} bordered={false} bodyStyle={{ display: "flex", flexDirection: "column" }}>
         <Card bodyStyle={{ display: "flex" }}>
           <Select defaultValue="GET" style={{ width: 120 }} onChange={(x) => {
@@ -85,8 +106,14 @@ export default function Home() {
         <Card title="request">
           <Tabs defaultActiveKey="1" onChange={() => { }}>
             <TabPane tab="JSON" key="1">
-              <TextArea value={json} onChange={(x) => {
-                setJson(x.target.value)
+              {jsonFormatError && <Alert
+                message="Error"
+                description="JSON Format Error"
+                type="error"
+                showIcon
+              />}
+              <TextArea value={jsonText} onChange={(x) => {
+                setJsonText(x.target.value)
               }} rows={4} />
             </TabPane>
             <TabPane tab="Headers" key="2">
@@ -121,14 +148,25 @@ export default function Home() {
             </TabPane>
           </Tabs>
         </Card>
-        <Card title={`response ${status} ${time}`}>
-          <Tabs defaultActiveKey="1" onChange={() => { }}>
+        <Card title={`response ${status}`} extra={<span><ClockCircleOutlined />{time}</span>} >
+          <Tabs defaultActiveKey="1" onChange={(x) => {
+            console.log(x)
+            if (x === "2") {
+              setTimeout(() => {
+                Prism.highlightAll();
+              }, 500);
+            }
+          }}>
             <TabPane tab="Response" key="1">
               {response}
             </TabPane>
             {
-              responseJSON && <TabPane tab="JSON" key="2">
-                <pre><code>{responseJSON}</code></pre>
+              responseJSON && <TabPane className="Code" tab="JSON" key="2">
+                <pre className="line-numbers">
+                  <code className="language-js">
+                    {responseJSON}
+                  </code>
+                </pre>
               </TabPane>
             }
           </Tabs>
